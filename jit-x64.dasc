@@ -35,7 +35,11 @@ int main(int argc, char *argv[])
 	// Function prologue.
 	|  push PTR
 	|  mov  PTR, rdi      // rdi store 1st argument
-	int n;
+	unsigned int n;
+	unsigned int sr_num = 0;
+	unsigned int sl_num = 0;
+	unsigned int add_num = 0;
+	unsigned int sub_num = 0;
 	for (char *p = read_file(argv[1]); *p; p++) {
 		switch (*p) {
 		case '>':
@@ -75,18 +79,99 @@ int main(int argc, char *argv[])
 			|  mov   byte [PTR], al
 			break;
 		case '[':
-			if(*(p+1)=='-' && *(p+2)==']'){
-				| mov   byte [PTR], 0
-				p = p + 2;
-				break;
-			}
-			if(*(p+1)=='>' && *(p+2)=='+' && *(p+3)=='<' && *(p+4)=='-' && *(p+5)==']'){
-				| mov   cl, byte [PTR]
-				| add   byte [PTR+1], cl
-				| mov   byte [PTR], 0
-				p = p + 5;
-				break;
-			}
+
+			sr_num = 0;
+			sl_num = 0;
+			add_num = 0;
+			sub_num = 0;
+			n = 0;
+			while(1){
+				n++;
+				if(*(p+n)==']' && sr_num==sl_num){
+
+					if(*(p+1)=='-' && *(p+2)==']'){
+						| mov   byte [PTR], 0
+						p = p + 2;
+						n = 0;
+						break;//while(1)
+					}
+
+					if((*(p+1)=='>' && *(p+2)=='+' && *(p+3)=='<' && *(p+4)=='-' && *(p+5)==']') ||
+					   (*(p+1)=='-' && *(p+2)=='>' && *(p+3)=='+' && *(p+4)=='<' && *(p+5)==']'))
+					{
+						| mov   cl, byte [PTR]
+						| add   byte [PTR+1], cl
+						| mov   byte [PTR], 0
+						p = p + 5;
+						n = 0;
+						break;//while(1)
+					}
+					if((*(p+1)=='<' && *(p+2)=='+' && *(p+3)=='>' && *(p+4)=='-' && *(p+5)==']') ||
+					   (*(p+1)=='-' && *(p+2)=='<' && *(p+3)=='+' && *(p+4)=='>' && *(p+5)==']'))
+					{
+						| mov   cl, byte [PTR]
+						| add   byte [PTR-1], cl
+						| mov   byte [PTR], 0
+						p = p + 5;
+						n = 0;
+						break;//while(1)
+					}
+
+					| mov   cl, byte [PTR]
+					while(*(++p)!=']'){
+						if(*p=='>'){
+							n = 1;
+							while(*(++p)=='>') n++;
+							|  add  PTR,n
+							p--;
+						}//if
+						else if(*p=='<'){
+							n = 1;
+							while(*(++p)=='<') n++;
+							|  sub  PTR,n
+							p--;
+						}//else if
+						else if(*p=='+'){
+							n = 1;
+							while (*(++p)=='+') n++;
+							| mov   al, cl
+							| mov   r10b, n
+							| imul  r10b
+							| add  byte [PTR], al
+							p--;
+						}//else if
+						else if(*p=='-'){
+							n = 1;
+							while (*(++p)=='-') n++;
+							| mov   al, cl
+							| mov   r10b, n
+							| imul  r10b
+							| sub  byte [PTR], al
+							p--;
+						}//else if
+					}//while
+					n = 0;
+					break;//while(1)
+				}//if
+				else if(*(p+n)=='>') {
+					sr_num++;
+				}
+				else if(*(p+n)=='<') {
+					sl_num++;
+				}
+				else if(*(p+n)=='+') {
+					add_num++;
+				}
+				else if(*(p+n)=='-') {
+					sub_num++;
+				}
+				else {
+					n = 1;
+					break;
+				}
+			}//while(1)
+			if(n==0) break;//case
+
 			//don't touch begin
 			if (top == limit) err("Nesting too deep.");
 			// Each loop gets two pclabels: at the beginning and end.
